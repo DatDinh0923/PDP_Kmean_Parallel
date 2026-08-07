@@ -1,0 +1,88 @@
+pipeline:
+1. Loads an image on the CPU.
+2. Separates it into red, green, and blue arrays.
+3. Uses K-means++ on the CPU to choose the initial centroids.
+4. Copies image data to the GPU.
+5. Runs Lloyd’s K-means iterations using CUDA.
+6. Supports three GPU optimization versions:
+  - v1: constant-memory centroids.
+  - v2: shared-memory centroid tiling.
+  - v3: shared-memory centroids and privatized accumulators.
+7. Copies the final labels and centroids back to the CPU.
+8. Writes the segmented image and benchmark results.
+
+1. Algorithm overview
+1.1 K-means++ initialization
+K-means++ chooses good starting centroids.
+For example, with K = 3, it selects three initial RGB colors:
+Centroid 0 = (220, 30, 40)    red-like
+Centroid 1 = (20, 210, 50)    green-like
+Centroid 2 = (30, 40, 220)    blue-like
+These centroids are selected from actual pixels in the image.
+K-means++ is run on the CPU, using the common function:
+kmeanspp_seed(...)
+This initialization is shared with the sequential implementation so that CPU and CUDA start from exactly the same centroids.
+
+1.2 Lloyd’s algorithm
+After selecting the initial centroids, Lloyd’s algorithm repeats two operations.
+Assignment step
+
+For every pixel:
+1. Calculate its distance from every centroid.
+2. Select the nearest centroid.
+3. Store that centroid number in labels[i].
+
+For example:
+Pixel RGB = (210, 35, 45)
+Distance to red centroid   = small
+Distance to green centroid = large
+Distance to blue centroid  = large
+
+Therefore:
+labels[i] = 0
+
+Update step
+
+After assigning every pixel:
+1. Add together all red values in each cluster.
+2. Add together all green values.
+3. Add together all blue values.
+4. Count the number of pixels.
+5. Calculate the new average color.
+
+For cluster c:
+new_red[c]   = sum_red[c]   / count[c]
+new_green[c] = sum_green[c] / count[c]
+new_blue[c]  = sum_blue[c]  / count[c]
+
+The assignment and update steps repeat until:
+changed == 0
+
+This means no pixel changed its cluster during the latest iteration.
+
+Some notes:
+- CUDA_CHECK: wrap CUDA API call -> if not exist or error or not enough VRAM will print out error, line, and file name
+- KM_MAX_CONST_K: max number of cluster, set upper bound for K when storing centroid in constain mem, which is 3*1024*4bytes = 12KB < 64KB of GPU constain mem
+- KM_BLOCK: 256 threads per block
+
+- __constant__: CUDA allocate variable in global, read-only constant memory -> need this cuz const mem backed by dedicate const cache on GPU
+- __device__: tell this func to exec on GPU
+- __forceline__: tell compiler to inline func directly into kernel, eliminate function call overhead.
+- atomicAdd(): native CUDA func-> Solve race condition when thousand of instruction fire at once
+
+Why is v1 slow?
+If many pixels belong to the same cluster, thousands of threads try to update the same four addresses:
+sumR[c]
+sumG[c]
+sumB[c]
+cnt[c]
+The GPU has to serialize conflicting atomic operations.
+This is called atomic contention.
+Version 1 performs:
+4 global atomics per pixel plus a fifth global atomic when the label changes.
+For a one-million-pixel image, that is approximately:
+4,000,000 global atomic operations per iteration
+
+The main difference from v1 is where the centroids are read from.
+- v1: constant memory.
+- v2: a per-block shared-memory copy.
