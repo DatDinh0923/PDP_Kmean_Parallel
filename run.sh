@@ -90,6 +90,7 @@ needs_rebuild() {
 build_seq_if_needed() {
     local binary="$SCRIPT_DIR/bin/seq_O3"
     local sources=(
+        "$SCRIPT_DIR/run.sh"
         "$SCRIPT_DIR/seq/kmeans_seq.cpp"
         "$SCRIPT_DIR/common/kmeans_common.h"
         "$SCRIPT_DIR/common/stb_image.h"
@@ -110,6 +111,7 @@ build_seq_if_needed() {
 build_cuda_if_needed() {
     local binary="$SCRIPT_DIR/bin/kmeans_cuda"
     local sources=(
+        "$SCRIPT_DIR/run.sh"
         "$SCRIPT_DIR/cuda/kmeans_cuda.cu"
         "$SCRIPT_DIR/common/kmeans_common.h"
         "$SCRIPT_DIR/common/stb_image.h"

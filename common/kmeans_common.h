@@ -153,10 +153,16 @@ static int kmeanspp_seed(const ImageSoA *img, int K, uint64_t seed,
 
 /* Image I/O*/
 #ifdef KM_IMPLEMENT_IO
+#if defined(__CUDACC__)
+#pragma nv_diag_suppress 550
+#endif
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#if defined(__CUDACC__)
+#pragma nv_diag_default 550
+#endif
 
 static int load_image_soa(const char *path, ImageSoA *out)
 {
