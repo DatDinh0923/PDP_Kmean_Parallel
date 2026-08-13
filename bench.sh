@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# bench.sh -- performance sweep across resolution, K and backend.
-#
-# Emits results.csv. All backends do IDENTICAL work for a given cell (same
-# seeding, same iteration count), so the timings are directly comparable.
-#
-# Usage: ./bench.sh [max_iter]
+# bench.sh - performance sweep across resolution, K and backend.
 set -uo pipefail
 
 ITERS=${1:-30}
